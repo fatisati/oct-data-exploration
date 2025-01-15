@@ -3,6 +3,13 @@ from torchvision.datasets import ImageFolder
 from torchvision.transforms import ToTensor
 import random
 import torch
+import matplotlib.pyplot as plt
+from torchvision.transforms import ToTensor
+import matplotlib.pyplot as plt
+import torch
+from torchvision import transforms
+from collections import defaultdict
+
 def visualize_samples_from_imagefolder(dataset, i=1, class_names=None, figsize=(15, 5), class_range=None):
     """
     Visualize `i` samples from each class in a PyTorch ImageFolder dataset within a specified class range.
@@ -55,10 +62,6 @@ def visualize_samples_from_imagefolder(dataset, i=1, class_names=None, figsize=(
     plt.tight_layout(pad=0)
     plt.show()
 
-import matplotlib.pyplot as plt
-from torchvision.transforms import ToTensor
-from torch.utils.data import DataLoader
-
 def visualize_augmentations(dataset, augmentations, i=3, j=5, figsize=(15, 5)):
     """
     Visualize `i` samples from the dataset with `j` augmentations applied to each sample.
@@ -98,4 +101,77 @@ def visualize_augmentations(dataset, augmentations, i=3, j=5, figsize=(15, 5)):
     
     # Adjust layout
     plt.tight_layout(pad=0.5)
+    plt.show()
+
+def show_class_samples_with_transformations(dataset, max_classes=10, transformation_dict=None):
+    """
+    Displays random samples from each class with transformations applied.
+
+    Parameters:
+    - dataset: A PyTorch ImageFolder dataset.
+    - max_classes: Maximum number of classes to show.
+    - transformation_dict: Dictionary with transformation names and transformations.
+    """
+    # Get unique classes and their indices in the dataset
+    class_to_idx = dataset.class_to_idx
+    max_classes = min(max_classes, len(class_to_idx))  # Ensure max_classes doesn't exceed dataset classes
+    print(max_classes)
+    # Group indices by class
+    class_to_indices = defaultdict(list)
+    for idx, label in enumerate(dataset.targets):
+        class_to_indices[label].append(idx)
+
+    # Limit to max_classes and select one random sample per class
+    chosen_samples = {}
+    for label, indices in random.sample(list(class_to_indices.items()), min(max_classes, len(class_to_indices))):
+        random_idx = random.choice(indices)  # Randomly pick one index for the class
+        chosen_samples[label] = dataset[random_idx][0]  # Add the image to chosen samples
+
+    # Convert the chosen samples into a sorted list (by class index)
+    sorted_samples = sorted(chosen_samples.items(), key=lambda x: x[0])
+    images = [img for _, img in sorted_samples]
+    class_names = [dataset.classes[label] for label, _ in sorted_samples]
+
+    # If no transformations are provided, use only the original images
+    if transformation_dict is None:
+        transformation_dict = {"Original": None}
+
+    # Prepare grid dimensions
+    n_rows = len(transformation_dict)
+    n_cols = len(images)
+
+    # Create the figure
+    fig, axes = plt.subplots(n_rows, n_cols + 1, figsize=((n_cols + 1) * 3, n_rows * 3), dpi=100)
+    axes = axes if n_rows > 1 else [axes]  # Ensure axes is always iterable
+
+    for row_idx, (transform_name, transform) in enumerate(transformation_dict.items()):
+        for col_idx, (img, class_name) in enumerate(zip(images, class_names)):
+            ax = axes[row_idx][col_idx + 1] if n_rows > 1 else axes[col_idx + 1]
+
+            # Apply transformation if it's not None
+            transformed_img = transform(img) if transform else img
+
+            # Convert image to numpy for plotting
+            if not isinstance(transformed_img, torch.Tensor):
+                transformed_img = ToTensor()(transformed_img)  # Convert PIL image to tensor
+            transformed_img = (
+                transformed_img.permute(1, 2, 0).numpy()
+                if transformed_img.ndimension() == 3
+                else transformed_img.numpy()
+            )
+
+            # Plot the image
+            ax.imshow(transformed_img)
+            if row_idx == 0:
+                ax.set_title(class_name, fontsize=10)  # Add title for the first row
+            ax.axis("off")
+
+        # Add transformation label in the first column
+        label_ax = axes[row_idx][0] if n_rows > 1 else axes[0]
+        label_ax.text(
+            0.5, 0.5, transform_name, fontsize=12, ha="center", va="center", rotation=0
+        )
+        label_ax.axis("off")
+
+    plt.tight_layout()
     plt.show()
